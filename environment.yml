@@ -1,0 +1,16 @@
+name: cicd_fastapi_dev
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - pip=20.3.3
+  - pip:
+    - scikit-learn
+    - pandas
+    - numpy
+    - pytest
+    - jupyter
+    - jupyterlab
+    - fastapi
+    - matplotlib==3.3.4
+    - uvicorn
