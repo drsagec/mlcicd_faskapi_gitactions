@@ -22,10 +22,7 @@ from sklearn.model_selection import train_test_split
 
 import constants
 import joblib
-
 import pandas as pd
-import plotly as py
-py.offline.init_notebook_mode(connected=True)
 warnings.filterwarnings('ignore')
 
 
@@ -205,7 +202,7 @@ def train_results(
             df_census.drop(df_census[df_census[col] ==
                            ' ?'].index, inplace=True)
         logging.info("\tremoved spaces and  ? from data")
-        df_census['salary'].value_counts().plot(kind='bar')
+        # df_census['salary'].value_counts().plot(kind='bar')
         df_census = df_census.replace(r"-", "", regex=True)
         logging.info("\treplaced - with null value in columns")
 
