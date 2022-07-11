@@ -8,8 +8,8 @@ post_modelinfer_url_live = f"{get_home_url_live}/model/"
 
 
 # ------------ File/Folder Locations ------------
-core_filename = "logs/core_script_results.log"
-unittest_filename = "logs/unit_test_results.log"
+core_filename = "core_script_results.log"
+unittest_filename = "unit_test_results.log"
 
 # this file should be inside data folder
 input_csv_filename = "census.csv"
