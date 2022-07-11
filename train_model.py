@@ -37,7 +37,7 @@ cat_features = [
     "native-country",
 ]
 
-core_filename = "logs/core_script_results.log"
+core_filename = "core_script_results.log"
 # setting up log file
 logging.basicConfig(
     filename=core_filename,
