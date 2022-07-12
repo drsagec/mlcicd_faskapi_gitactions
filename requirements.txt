@@ -10,3 +10,4 @@ flake8
 pytest
 xgboost
 plotly
+python-multipart

@@ -1,44 +1,103 @@
-Working in a command line environment is recommended for ease of use with git and dvc. If on Windows, WSL1 or 2 is recommended.
-# 
-#
-# Environment Set up
-* Download and install conda if you don’t have it already.
-    * Use the supplied requirements file to create a new environment, or
-    * conda create -n [envname] "python=3.8" scikit-learn pandas numpy pytest jupyter jupyterlab fastapi uvicorn -c conda-forge
-    * Install git either through conda (“conda install git”) or through your CLI, e.g. sudo apt-get git.
+# MLOps Heroku, FastAPI
 
-## Repositories
-* Create a directory for the project and initialize git.
-    * As you work on the code, continually commit changes. Trained models you want to use in production must be committed to GitHub.
-* Connect your local git repo to GitHub.
-* Setup GitHub Actions on your repo. You can use one of the pre-made GitHub Actions if at a minimum it runs pytest and flake8 on push and requires both to pass without error.
-    * Make sure you set up the GitHub Action to have the same version of Python as you used in development.
+Training data, deploying to GitHub, flake8 git-action, continually deploying to Heroku with Swagger UI (fastapi). 
 
-# Data
-* Download census.csv and commit it to dvc.
-* This data is messy, try to open it in pandas and see what you get.
-* To clean it, use your favorite text editor to remove all spaces.
 
-# Model
-* Using the starter code, write a machine learning model that trains on the clean data and saves the model. Complete any function that has been started.
-* Write unit tests for at least 3 functions in the model code.
-* Write a function that outputs the performance of the model on slices of the data.
-    * Suggestion: for simplicity, the function can just output the performance on slices of just the categorical features.
-* Write a model card using the provided template.
 
-# API Creation
-*  Create a RESTful API using FastAPI this must implement:
-    * GET on the root giving a welcome message.
-    * POST that does model inference.
-    * Type hinting must be used.
-    * Use a Pydantic model to ingest the body from POST. This model should contain an example.
-   	 * Hint: the data has names with hyphens and Python does not allow those as variable names. Do not modify the column names in the csv and instead use the functionality of FastAPI/Pydantic/etc to deal with this.
-* Write 3 unit tests to test the API (one for the GET and two for POST, one that tests each prediction).
+### GitHub folder structure
+#### data folder: 
+contains the original data (csv) used for the training. Users can upload data to through POST Upload File endpoint via Swagger UI- https://census-mlops-nano.herokuapp.com/docs#
 
-# API Deployment
-* Create a free Heroku account (for the next steps you can either use the web GUI or download the Heroku CLI).
-* Create a new app and have it deployed from your GitHub repository.
-    * Enable automatic deployments that only deploy if your continuous integration passes.
-    * Hint: think about how paths will differ in your local environment vs. on Heroku.
-    * Hint: development in Python is fast! But how fast you can iterate slows down if you rely on your CI/CD to fail before fixing an issue. I like to run flake8 locally before I commit changes.
-* Write a script that uses the requests module to do one POST on your live API.
+#### models folder: 
+contains all the trained models as. pkl format
+
+#### results folder: 
+contains the final findings for each models and best performing model. 
+
+### GitHub main files (root)
+- Procfile :  Heroku setting
+- README.md :  contains project description
+- constants.py :  contains constants used by python files
+- main.py :  contains script for FastAPI
+- requirements.txt :  contains dependent modules. Note - versions are removed
+- sanitycheck.py : tests the  test_fastapp.py if all required GET and POST test cases are available
+- test_data.py : contains test data used by test_data.py
+- test_fastapp.py : contains test case for FastAPI GET and POST. To run `pytest test_fastapp.py`
+- train_model.py : core script for model training and saving.
+
+
+### Accessing Swagger UI (fastapi)
+Using Swagger UI, users can add new data for training, train the model and test them.
+
+#### Live (HEROKU)
+1. Open browser and got https://census-mlops-nano.herokuapp.com/docs#
+2. Select the endpoint and click on 'Try it out'
+3. Then click 'Execute'
+4. Results and responses will be displayed in box below 'Execute' button.
+
+** Please note Heroku used is free version and during training it may fail due to over usage of memory. You can clone the repo and run it locally. 
+
+#### Local
+1. clone the repo
+`git clone https://github.com/drsagec/mlcicd_faskapi_gitactions.git`
+
+2. CD into folder
+`cd mlcicd_faskapi_gitactions`
+
+
+3. Change env flag 
+    - go to constants.py and change ENV=LIVE to ENV=DEV
+    - save 
+
+4. create conda env
+`conda create -n [envname] "python=3.9"
+
+5. install python dependencies
+`pip install -r requirements.txt`
+
+6. start the app
+`uvicorn main:app --reload`
+
+7. Then go to link provide on terminal, usually 'http://127.0.0.1:8000/docs#'
+
+
+
+### Running files manually
+1. CD into folder
+`cd mlcicd_faskapi_gitactions` 
+
+2. Run sanity test 
+`python sanitycheck.py`
+
+3. Run flake8:
+- individual files 
+`flake8 sanitycheck.py`
+`flake8 main.py`
+`flake8 test_fastapp.py`
+`flake8 train_model.py`
+- flake8all files at once
+`flake8`
+
+3. Run pytest:
+`pytest test_fastapp.py`
+- or run for customized tes messges.
+`python -c "from test_fastapp import run_tests;run_tests()"`
+- or visit via Swagger UI : https://census-mlops-nano.herokuapp.com/docs#/default/model_tests_test__post
+** Note - before running tests make sure to train the model.
+
+
+
+### Git 
+
+- Review git action results, 
+    - visit - https://github.com/drsagec/mlcicd_faskapi_gitactions/actions
+    - or refer to screenshot continuous_integration.png
+- Review commits 
+
+
+### Model Card 
+Open model_card.md for model explanation 
+
+### Tech Stacks
+python, conda, fastapi (RESTful API), Heroku, git, GitHub, dvc, flake8, pytest, ML Models, GitHub Actions, continuous delivery, continuous testing
+
