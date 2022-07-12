@@ -99,5 +99,5 @@ Using Swagger UI, users can add new data for training, train the model and test 
 Open model_card.md for model explanation 
 
 ### Tech Stacks
-python, conda, fastapi (RESTful API), Heroku, git, GitHub, dvc, flake8, pytest, ML Models, GitHub Actions, continuous delivery, continuous testing
+python, conda, fastapi (RESTful API), Heroku, git, GitHub, dvc, flake8, pytest, ML Models, GitHub Actions, continuous delivery, continuous testing, pydantic, pandas, scikit learn
 
