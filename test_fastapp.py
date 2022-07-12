@@ -16,6 +16,21 @@ RETRAIN = True
 print("Running Tests - please wait ... ")
 
 
+def test_get_base_response():
+    """
+    postive test case to test first data set for welcome message
+    """
+    if constants.ENV == 'DEV':
+        get_home_url = constants.get_home_url_dev
+
+    elif constants.ENV == 'LIVE':
+        get_home_url = constants.get_home_url_live
+
+    response = requests.get(get_home_url)
+
+    assert response.status_code == 200
+
+
 def test_get_home_data1():
     """
     postive test case to test first data set for welcome message
