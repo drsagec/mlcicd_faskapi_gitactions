@@ -157,14 +157,14 @@ async def pred_income(features: Features):
     return msg
 
 
-# running tests via fast api
-@app.post("/test/")
-def model_tests():
-    try:
-        from test import test_fastapp
-        message = test_fastapp.run_tests()
-        return {"run_massage": "Ran successfully",
-                "test result": message}
-    except Exception as Excp:
-        return {"run_massage": f"Faied to run. {str(Excp)}",
-                "test result": ""}
+# # running tests via fast api
+# @app.post("/test/")
+# def model_tests():
+#     try:
+#         from test import test_fastapp
+#         message = test_fastapp.run_tests()
+#         return {"run_massage": "Ran successfully",
+#                 "test result": message}
+#     except Exception as Excp:
+#         return {"run_massage": f"Faied to run. {str(Excp)}",
+#                 "test result": ""}
