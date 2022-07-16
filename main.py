@@ -11,7 +11,8 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 app = FastAPI(title="Nano MLOps FastAPI/GitAictions",
               description="Train new model, get predictions of salary over \
                 50k and accuracy scores. <br><br>Use below creds:\
-                    <br>username: 'nanouser'<br>password: 'nanopass'",
+                    <br>username: 'nanouser'<br>password: 'nanopass'\
+                        <br> uses continous test and deploy Heroku",
               openapi_url="/openapi.json")
 
 security = HTTPBasic()
