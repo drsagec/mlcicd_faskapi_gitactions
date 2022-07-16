@@ -8,7 +8,7 @@ author : Dr.Sage/Sagar Chhetri
 from . import test_data
 
 from .. import train_model
-from mlcicd_faskapi_gitactions import constants
+from .. import constants
 
 import os
 import joblib

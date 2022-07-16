@@ -161,7 +161,7 @@ async def pred_income(features: Features):
 @app.post("/test/")
 def model_tests():
     try:
-        import test_fastapp
+        from test import test_fastapp
         message = test_fastapp.run_tests()
         return {"run_massage": "Ran successfully",
                 "test result": message}
