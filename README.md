@@ -9,7 +9,7 @@ Training data, deploying to GitHub, flake8 git-action, continually deploying to 
 contains the original data (csv) used for the training. Users can upload data to through POST Upload File endpoint via Swagger UI- https://census-mlops-nano.herokuapp.com/docs#
 
 #### models folder: 
-contains all the trained models as. pkl format
+contains all the trained models as. pkl format and splice_output.txt
 
 #### results folder: 
 contains the final findings for each models and best performing model. 
@@ -21,8 +21,9 @@ contains the final findings for each models and best performing model.
 - main.py :  contains script for FastAPI
 - requirements.txt :  contains dependent modules. Note - versions are removed
 - sanitycheck.py : tests the  test_fastapp.py if all required GET and POST test cases are available
-- test_data.py : contains test data used by test_data.py
-- test_fastapp.py : contains test case for FastAPI GET and POST. To run `pytest test_fastapp.py`
+- test/test_data.py : contains test data used by test_data.py
+- test/test_fastapp.py : contains test case for FastAPI GET and POST. To run `pytest test_fastapp.py`
+- test/test_model.py : contains test case for core train model file. To run `pytest -r .\test_model.py`
 - train_model.py : core script for model training and saving.
 
 
@@ -69,21 +70,39 @@ Using Swagger UI, users can add new data for training, train the model and test 
 2. Run sanity test 
 `python sanitycheck.py`
 
+** sanitycheck result is available at sanitycheck_results.png, we can not move module imports below sys.append.
+
+
 3. Run flake8:
 - individual files 
 `flake8 sanitycheck.py`
 `flake8 main.py`
+
+`cd test` 
 `flake8 test_fastapp.py`
+
+`cd test`
 `flake8 train_model.py`
+
+
 - flake8all files at once
+`cd mlcicd_faskapi_gitactions` 
 `flake8`
 
+** flake8 result is available at flake8_results.png, we can not move module imports below sys.append.
+
+
+
 3. Run pytest:
+`cd test`
 `pytest test_fastapp.py`
+`pytest -r .\test_model.py`
+
 - or run for customized tes messges.
 `python -c "from test_fastapp import run_tests;run_tests()"`
 - or visit via Swagger UI : https://census-mlops-nano.herokuapp.com/docs#/default/model_tests_test__post
-** Note - before running tests make sure to train the model.
+
+** pytest result is available at pytest_result.png
 
 
 
@@ -99,5 +118,5 @@ Using Swagger UI, users can add new data for training, train the model and test 
 Open model_card.md for model explanation 
 
 ### Tech Stacks
-python, conda, fastapi (RESTful API), Heroku, git, GitHub, dvc, flake8, pytest, ML Models, GitHub Actions, continuous delivery, continuous testing, pydantic, pandas, scikit learn
+python, conda, fastapi (RESTful API), Heroku, git, GitHub, dvc, flake8, pytest, ML Models, GitHub Actions, continuous delivery, continuous testing, pydantic, pandas, scikit learn, fastapi auth (basic)
 

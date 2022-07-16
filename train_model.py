@@ -1,12 +1,21 @@
-'''Script to train machine learning model.
-    Using multiple models for best predictor
-    author Dr. Sagar Chhetri
+'''
+Script to train machine learning model.
+    Using multiple models for best predictions on census data
+
+    author: Dr. Sagar Chhetri
+
+    updates: 7/15 added spliced report
+            7/09 created FastAPI, Git Actions for MLOps
+
+# used during EDA (manual)- commented out for future
+# from sklearn.model_selection import KFold, cross_val_score
+# from sklearn.metrics import roc_auc_score
+# from sklearn.metrics import classification_report
+# from sklearn.preprocessing import LabelEncoder
+
 '''
 # importing all constants used in this module
 import warnings
-from sklearn.model_selection import KFold, cross_val_score
-from sklearn.metrics import roc_auc_score
-from sklearn.metrics import classification_report
 from xgboost import XGBClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.svm import SVC
@@ -15,475 +24,453 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.preprocessing import LabelEncoder
-import logging
-import os
+from sklearn.preprocessing import LabelBinarizer, OneHotEncoder
+from sklearn.metrics import fbeta_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
 
+import logging
+import os
+import numpy as np
 import constants
 import joblib
 import pandas as pd
 warnings.filterwarnings('ignore')
 
 
-cat_features = [
-    "workclass",
-    "education",
-    "marital-status",
-    "occupation",
-    "relationship",
-    "race",
-    "sex",
-    "native-country",
-]
-
-core_filename = "core_script_results.log"
+cat_features = constants.cat_features
 # setting up log file
 logging.basicConfig(
-    filename=core_filename,
+    filename=constants.core_log_filename,
     level=logging.INFO,
     filemode="w",
     format="%(name)s - %(levelname)s - %(message)s",
 )
 
 
-def is_file_exists(file_path):
-    ''' Checks if file path valid and logs logging message
-    input:
-        file_path : (str) full file path name
-    output:
-        success: (bool) success trure or false
-        message: (str) contain detail description of success and failures
-    '''
+def process_data(
+        X,
+        categorical_features=[],
+        label=None,
+        training=True,
+        encoder=None,
+        lb=None):
+    """ Process the data used in the machine learning pipeline.
 
-    success = True
-    message = ""
+    Processes the data using one hot encoding for the categorical features and
+    a label binarizer for the labels. This can be used in either training or
+    inference/validation.
 
-    if not os.path.exists(file_path):
-        success = False
-        message = f"{file_path} file not found"
-        logging.error(message)
+    Note: depending on the type of model used, you may want to add in
+    functionality that scales the continuous data.
+
+    Inputs
+    ------
+    X : pd.DataFrame
+        Dataframe containing the features and label. Columns in
+        `categorical_features`
+    categorical_features: list[str]
+        List containing the names of the categorical features (default=[])
+    label : str
+        Name of the label column in `X`. If None, then an empty array will be
+        returned for y (default=None)
+    training : bool
+        Indicator if training mode or inference/validation mode.
+    encoder : sklearn.preprocessing._encoders.OneHotEncoder
+        Trained sklearn OneHotEncoder, only used if training=False.
+    lb : sklearn.preprocessing._label.LabelBinarizer
+        Trained sklearn LabelBinarizer, only used if training=False.
+
+    Returns
+    -------
+    X : np.array
+        Processed data.
+    y : np.array
+        Processed labels if labeled=True, otherwise empty np.array.
+    encoder : sklearn.preprocessing._encoders.OneHotEncoder
+        Trained OneHotEncoder if training is True, otherwise returns the
+        encoder passed in.
+    lb : sklearn.preprocessing._label.LabelBinarizer
+        Trained LabelBinarizer if training is True, otherwise returns the
+        binarizer passed in.
+    """
+    if label is not None:
+        y = X[label]
+        X = X.drop([label], axis=1)
     else:
-        message = f"{file_path} file  found"
-        logging.info(message)
+        y = np.array([])
 
-    return success, message
+    X_categorical = X[categorical_features].values
+    X_continuous = X.drop(*[categorical_features], axis=1)
+
+    if training is True:
+        encoder = OneHotEncoder(sparse=False, handle_unknown="ignore")
+        lb = LabelBinarizer()
+        X_categorical = encoder.fit_transform(X_categorical)
+        y = lb.fit_transform(y.values).ravel()
+    else:
+        X_categorical = encoder.transform(X_categorical)
+        try:
+            y = lb.transform(y.values).ravel()
+        # Catch the case where y is None because we're doing inference.
+        except AttributeError:
+            pass
+
+    X = np.concatenate([X_continuous, X_categorical], axis=1)
+    return X, y, encoder, lb
+
+# get the scores for predication
 
 
-def is_dataframe(data_df):
-    '''
-    Checks if dataframe and has columns and rows, logs message
-    input:
-    data_df : (dataframe)
-    output:
-    success: (bool) success trure or false
-    message: (str) contain detail of success and failures
-    '''
-    success = True
-    message = ""
+def get_scores(y, preds):
+    """
+    Gets score report
+
+    inputs:
+        y :  (array) known lables - binaries
+        preds : (array) predicted lables - binaries
+
+    return:
+        precision_scor, recall_scor, fbeta_scor: (flaot) score results
+        msg: (str) detail message on success/failure
+
+    """
+    precision_scor = precision_score(
+        y, preds, zero_division=constants.zero_division)
+    recall_scor = recall_score(y, preds, zero_division=constants.zero_division)
+    fbeta_scor = fbeta_score(
+        y,
+        preds,
+        beta=constants.beta,
+        zero_division=constants.zero_division)
+    return precision_scor, recall_scor, fbeta_scor
+
+# get slice report
+
+
+def get_sliceson_report(df, slice_on, y, preds):
+    """
+    Gets sliced score report
+    inputs:
+        df : (dataframe) input data
+        slice_on : feature on which we are splicing data
+        y :  (array) known lables - binaries
+        preds : (array) predicted lables - binaries
+    return:
+        df_sliced_metrics: (dataframe) sliced score data
+        msg: (str) detail message on success/failure
+
+    """
+
+    df_sliced_metrics = pd.DataFrame(dtype=object)
+    data = "{}"
+
+    if slice_on not in constants.cat_features:
+        msg = "Can not splice on unknown feature"
+        return df_sliced_metrics, msg
 
     try:
-        assert isinstance(data_df, pd.DataFrame)
-        # Check if columns and rows exists
-        try:
-            assert data_df.shape[0] > 0
-            assert data_df.shape[1] > 0
-            message = f"{message} | rows {data_df.shape[0]}"
-            message = f"{message} , columns {data_df.shape[1]}"
+        for category in df[slice_on].unique():
+            filters_val = (df[slice_on] == category).values
+            sample_size = len(df.loc[df[slice_on] == category]) / len(y)
+            precision_scor, recall_scor, fbeta_scor = get_scores(
+                y[filters_val], preds[filters_val])
 
-        except AssertionError as err:
-            message = f"{message} | No rows and columns found {str(err)}"
+            data = {"slice_on": slice_on,
+                    "category": category,
+                    "sample_size": sample_size,
+                    "precision_score": precision_scor,
+                    "recall_score": recall_scor,
+                    "fbeta_score": fbeta_scor
+                    }
 
-    except AssertionError as err:
-        message = f"{message} | Not a dataframe {str(err)}"
+            df_sliced_metrics = df_sliced_metrics.append(pd.DataFrame([data]))
 
-    # logging message to log file
-    if success:
-        logging.info(message)
-    else:
-        logging.error(message)
+        df_sliced_metrics = df_sliced_metrics.set_index(
+            ['slice_on', 'category'])
+        msg = "Success getting spliced scores"
 
-    return success, message
+    except Exception as excp:
+        msg = f"Exception occured while getting spliced scores. {str(excp)}"
+
+    # logging
+    logging.info(f"{msg}")
+
+    return df_sliced_metrics, msg
 
 
-def import_data(pth):
+# get inference
+def get_inference(model, X):
+    """ Get model predictions
+    inputs
+        model : (pkl) Trained machine learning model
+        X : array  prediction data
+    returns
+        preds : (array) predictions
+
+    """
+    predict = model.predict(X)
+    return predict
+
+# cleaning data
+
+
+def get_data_clean(filename="census.csv"):
     '''
-    returns dataframe for the csv at pth, sucess flag and  message
+    cleans the data and saves as <filename>_cleaned.csv
+    - removes spaces from column and rows
 
     input:
-        pth: a path to the csv file for  data
+        filename: (str) a path to the csv file for  data
     output:
-        df: pandas dataframe containing the data from path
-        success: (bool) success trure or false
+        df: pandas dataframe containing the cleaned data
         message: (str) contain detail description of success and failures
     '''
-    orig_data_df = pd.DataFrame(dtype=object)
-    # cheking if path is correct, and logging sucess/fail message in logger
-    success, message = is_file_exists(file_path=pth)
+    if "/" in filename:
+        filepath = filename
+        flname = filepath.split("/")[-1]
+        cleaned_filepath = filepath.replace(flname, f"cleaned_{flname}")
 
-    if success:
-        orig_data_df = pd.read_csv(rf"{pth}", index_col=False)
+    else:
+        filepath = f"data/{filename}"
+        cleaned_filepath = filepath.replace(filename, f"cleaned_{filename}")
 
-        # check if dataframe or not and logging sucess/fail message in logger
-        success, msg = is_dataframe(data_df=orig_data_df)
-        message = f"{message} |  {str(msg)}"
+    data = pd.DataFrame(dtype=object)
 
-    return orig_data_df, success, message
+    if os.path.exists(filepath):
+        data = pd.read_csv(filepath)
+        data.columns = [x.replace(" ", "") for x in data.columns]
+        for col in data.columns.tolist():
+            data[col] = data[col].astype(str).str.replace(" ", "")
+
+        msg = f"\tsuccess getting data, has {data.shape[0]}\
+             rows and {data.shape[1]} columns"
+        data.to_csv(cleaned_filepath)
+        msg = f"{msg}\n\tsaved successfully at {cleaned_filepath}"
+
+    elif not os.path.exists(filepath):
+        msg = f"\tcouldn't find the file {filepath}"
+
+    return data, msg
 
 
-def train_results(
-        input_csv_filename=constants.input_csv_filename,
-        test_size=0.30,
-        random_state=11,
-        n_splits=4,
-        shuffle=True,
-        cv=5):
+# getting the model path
+def get_model_name_path(modelname):
+    """
+    get the model path for training, inference
+    input:
+        modelname: (str) model name \
+            ['rf','lr','knn','dt','adb','svm','gdboost','xgboost']
+    returns
+        model: (object) model
+        model_pth: (str) path where the model is saved with modelname
+        msg: (str) detail of processing
+    """
+    default_models = [
+        'rf',
+        'lr',
+        'knn',
+        'dt',
+        'adb',
+        'svm',
+        'gdboost',
+        'xgboost']
+    model_pth = ""
+    model = None
+
+    if modelname not in default_models:
+        msg = f"not a correct model name , \
+            value must be in {default_models}"
+    else:
+        if modelname == 'rf':
+            model = RandomForestClassifier()
+        elif modelname == 'lr':
+            model = LogisticRegression()
+        elif modelname == 'knn':
+            model = KNeighborsClassifier()
+        elif modelname == 'dt':
+            model = DecisionTreeClassifier()
+        elif modelname == 'adb':
+            model = AdaBoostClassifier()
+        elif modelname == 'svm':
+            model = SVC()
+        elif modelname == 'gdboost':
+            model = GradientBoostingClassifier()
+        elif modelname == 'xgboost':
+            model = XGBClassifier()
+        model_pth = f'models/{modelname}.pkl'
+
+        msg = f"model is {model} , will be saved at {model_pth}"
+
+    return model, model_pth, msg
+
+
+def train_model(
+        modelname='',
+        filename=constants.input_csv_filename,
+        test_size=constants.test_size):
     """
     Train the results based on data and model params
     steps:
-        get data
-        clean data
-        split data
-        encode data
-        fit model
-        test model
-        create best performing model
-        save all models
-        save all results
+        1. get data
+        2. clean data
+        3. split data
+        4. encode data
+        5. fit model
+        6. scores and test model
+        7. saves model
+        8. saves encoder
 
     inputs:
         input_csv_filename: file , must be in data folder
         test_size : float <1, split of data for test/traning
-        random_state: int
-        n_splits: int
-        shuffle: bool
-        cv: int
 
-    output:
-        model results and scores , all dict objects
+    returns:
+        msg: (str) complete message with scores and saved locations
     """
+    msg = ""
 
-    logging.info("***   Data for all models  *** ")
+    if not modelname:
+        return "model name is empty"
 
-    logging.info("-------------  Getting Data ------------")
-    df_census = orig_data_df = pd.DataFrame(columns=cat_features, dtype=object)
-    classification_scores = "{}"
-    best_classification_scores = "{}"
-    roc_auc_scores = "{}"
-    best_roc_auc_scores = "{}"
-    cross_val_scores_mean = "{}"
-    best_cross_val_scores_mean = "{}"
-    rf_report = "{}"
+    msg = f"{msg}\n************ getting data, cleaning ************"
 
-    data_loc = f"./data/{input_csv_filename}"
-    orig_data_df, success, message = import_data(data_loc)
+    if filename == constants.input_csv_filename:
+        msg = f"{msg}\n\tusing input data from data/{filename}"
 
-    if success:
-        logging.info("-------------  Cleanig Data ------------")
-        orig_data_df.columns = [x.replace(" ", "")
-                                for x in orig_data_df.columns]
-        for col in orig_data_df.columns.tolist():
-            orig_data_df[col] = orig_data_df[col].astype(
-                str).str.replace(" ", "")
+    data, mess = get_data_clean(filename=filename)
+    msg = f"{msg}\n{mess}"
 
-        logging.info("\tremoved spaces in rows and columns")
-        logging.info(f"\tSample:\n{str(orig_data_df.head(3))}")
+    msg = f"{msg}\n\n************ training model ************"
+    model, model_pth, mess = get_model_name_path(modelname)
+    msg = f"{msg}\n{mess}"
 
-        # cleaning data/columns
-        org_cols = cat_features.copy()
-        org_cols.append("salary")
-        orig_data_df = orig_data_df[org_cols]
+    # splitting data test_size
+    train, test = train_test_split(data, test_size=test_size)
+    msg = f"{msg}\nsplitted data split_test_size = {test_size} \
+    train size = {len(train)}, test size ={len(test)}"
 
-        # created new df df_census- we may need to check orig_data_df for
-        # further analysis in case of faiure
-        df_census = orig_data_df.copy()
+    # training data using process_data function.
+    X_train, y_train, encoder, lb_train = process_data(
+        train,
+        categorical_features=constants.cat_features,
+        label="salary",
+        training=True)
+    # test data using the process_data function.
+    X_test, y_test, encoder_test, lb_test = process_data(
+        test,
+        categorical_features=constants.cat_features,
+        label="salary",
+        training=False,
+        encoder=encoder,
+        lb=lb_train
+    )
 
-        for col in org_cols:
-            df_census.drop(df_census[df_census[col] ==
-                           ' ?'].index, inplace=True)
-        logging.info("\tremoved spaces and  ? from data")
-        # df_census['salary'].value_counts().plot(kind='bar')
-        df_census = df_census.replace(r"-", "", regex=True)
-        logging.info("\treplaced - with null value in columns")
+    msg = f"{msg}\nencoded data, used catagorical features\
+          = {constants.cat_features}"
+    joblib.dump(encoder, 'models/encoder.pkl')
+    msg = f"{msg}\nsaved encoder at  models/encoder.pkl"
 
+    # fitting model
+    model.fit(X_train, y_train)
+
+    # saving  model
+    joblib.dump(model, model_pth)
+    msg = f"{msg}\nsuccess fitting model, saved at {model_pth}"
+
+    # getting infer preds
+    y_train_preds = get_inference(model, X_train)
+    y_test_preds = get_inference(model, X_test)
+
+    # getting scores for training data
+    precision_scor, recall_scor, fbeta_scor = get_scores(
+        y_train, y_train_preds)
+    msg = f"{msg}\nTraining Scores:\n \
+    \tprecision_score = {precision_scor}\n \
+    \trecall_score = {recall_scor}\n \
+    \tfbeta_score = {fbeta_scor}\n "
+
+    # getting scores for test data
+    precision_scor, recall_scor, fbeta_scor = get_scores(y_test, y_test_preds)
+    msg = f"{msg}\nTraining Scores:\n \
+    \tprecision_score = {precision_scor}\n \
+    \trecall_score = {recall_scor}\n \
+    \tfbeta_score = {fbeta_scor}\n "
+
+    # getting sliced metrics
+
+    df_sliced_metrics, msssg = get_sliceson_report(df=data.tail(
+        y_test.shape[0]), slice_on="education", y=y_test, preds=y_test_preds)
+
+    msg = f"{msg}\nGetting sliced metrics, {msssg}"
+
+    # saving  sliced metrics
+    # securing slice_output.txt for trainer reveiw
+    if os.path.exists('models/slice_output.txt'):
+        df_sliced_metrics.to_csv('models/test_slice_output.txt')
     else:
-        logging.error(f"\tFailed: {message}")
-        success = False
+        df_sliced_metrics.to_csv('models/slice_output.txt')
 
-    if success:
-        # Training and Testing all models
-        logging.info(
-            "***   Training and Testing all models  *** ")
-        logging.info("NOTE: data will be trained for:")
-        logging.info("\tLogistic Regression (lr),  KNearest Neighbour (lr)")
-        logging.info("\tDeciesion Tree (dt), Random Forest (rf)")
-        logging.info("\tAdaboost Classifier (adb), ")
-        logging.info("\tsupport vactor classifier (svm), ")
-        logging.info("\tGradient Boosting Classifier (gdboost), ")
-        logging.info("\tXtrim Gredient Boosting Classifier (xgboost)")
+    msg = f"{msg}\n\tsaved at models/slice_output.txt"
 
-        logging.info("CREDIT:https://www.linkedin.com/in/michaelgalarnyk/")
-        logging.info("\tfor education material")
+    logging.info("***   Model Training  *** ")
+    logging.info(f"{msg}")
 
-        logging.info("-------------  encoding data  ------------")
+    return msg
 
-        # Converting salary and sex columns into binary
-        le = LabelEncoder()
-        df_census['salary'] = le.fit_transform(df_census['salary'])
-        df_census['sex'] = le.fit_transform(df_census['sex'])
-        df_census = pd.get_dummies(df_census, drop_first=True)
-        logging.info("\tConverting salary, sex columns into binary")
-        logging.info(", used LabelEncoder()")
+# prediting income using saved midel
 
-        logging.info("-------------  Splitting data   ------------")
-        try:
-            X = df_census.drop(['salary'], axis=1)
-            y = df_census['salary']
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=test_size, random_state=random_state)
-            lr = LogisticRegression()
-            knn = KNeighborsClassifier()
-            dt = DecisionTreeClassifier()
-            rf = RandomForestClassifier()
-            adb = AdaBoostClassifier()
-            svm = SVC()
-            gdboost = GradientBoostingClassifier()
-            xgboost = XGBClassifier()
 
-        except Exception as Excp:
-            logging.error(f"\tFailed splitting data.{str(Excp)}")
+def pred_income_rf(intake, modelname='rf'):
+    """
+    predicts the income for passed params and model
 
-        # Training all models
-        logging.info("-------------  Training all models  ------------")
-        try:
-            lr.fit(X_train, y_train)
-            knn.fit(X_train, y_train)
-            dt.fit(X_train, y_train)
-            rf.fit(X_train, y_train)
-            adb.fit(X_train, y_train)
-            svm.fit(X_train, y_train)
-            gdboost.fit(X_train, y_train)
-            xgboost.fit(X_train, y_train)
-            logging.info("\tFinished training all models")
-        except Exception as Excp:
-            logging.error(f"\tFailed training all models. {str(Excp)}")
+    inputs:
+        intake: (dataframe) dataframe with test values
+        modelname: name of model , can be \
+            ['rf','lr','knn','dt','adb','svm','gdboost','xgboost']
 
-        try:
-            # saving models
-            logging.info("-------------  Training all models  ------------")
-            logging.info("\tSaving models ")
-            joblib.dump(lr, "models/lr.pkl")
-            logging.info(
-                "\t-- saved lr model at models/lr.pkl")
-            joblib.dump(knn, "models/knn.pkl")
-            logging.info(
-                "\t-- saved knn model at models/knn.pkl")
-            joblib.dump(dt, "models/dt.pkl")
-            logging.info("\t-- saved dt model at models/dt.pkl")
-            joblib.dump(rf, "models/rf.pkl")
-            logging.info("\t-- saved rf model at models/rf.pkl")
-            joblib.dump(adb, "models/adb.pkl")
-            logging.info(
-                "\t-- saved adb model at models/adb.pkl")
-            joblib.dump(svm, "models/svm.pkl")
-            logging.info(
-                "\t-- saved svm model at models/svm.pkl")
-            joblib.dump(gdboost, "models/gdboost.pkl")
-            logging.info(
-                "\t-- saved gdboost model at models/gdboost.pkl")
-            joblib.dump(xgboost, "models/xgboost.pkl")
-            logging.info(
-                "\t-- saved xgboost model at models/xgboost.pkl")
+    returns:
+        greater_than_50k: (bool) prediction \
+            if salary greater or less than 50k, None if failed
+        message: (str) description of steps nd success/fail
 
-        except Exception as Excp:
-            logging.error(f"\tFailed saving  model(s). {str(Excp)}")
+    """
+    msg = ""
+    try:
+        model_, model_pth, mess_ = get_model_name_path(modelname)
 
-        # Models classification scores
-        logging.info(
-            "-------------  Models classification scores  ------------")
-        try:
-            classification_scores = {
-                "lr": lr.score(
-                    X_train, y_train), "knn": knn.score(
-                    X_train, y_train), "dt": dt.score(
-                    X_train, y_train), "rf": rf.score(
-                    X_train, y_train), "adb": adb.score(
-                        X_train, y_train), "svm": svm.score(
-                            X_train, y_train), "gdboost": gdboost.score(
-                                X_train, y_train), "xgboost": xgboost.score(
-                                    X_train, y_train)}
+        msg = f"{msg}\n***   Infer salary   *** "
+        msg = f"{msg}\n---- {modelname} ---- "
+        msg = f"{msg}\nintake data:\n{intake}"
 
-            best_classification_scores = {
-                'best_model_name': max(
-                    classification_scores,
-                    key=classification_scores.get),
-                'best_model_score': max(
-                    classification_scores.values())}
-            logging.info("\tBest model is")
-            logging.info(
-                f"\t{best_classification_scores['best_model_name']}")
-            logging.info(
-                f"\t {best_classification_scores['best_model_score']}")
+        if not os.path.exists(model_pth):
+            msg = f"{msg}\nerror occurred - model doesn't exist, \
+                please train the model from train_model endpoint first"
+        else:
+            model = joblib.load(model_pth)
+            encoder = joblib.load("models/encoder.pkl")
+            intake.columns = [x.replace("_", "-") for x in intake.columns]
+            x_data, y_data, encoder, lb = process_data(
+                intake,
+                categorical_features=constants.cat_features,
+                training=False,
+                encoder=encoder,
+            )
+            pred = get_inference(model, x_data)
+            if int(pred[0]) == 0:
+                greater_than_50k = False
+            else:
+                greater_than_50k = True
 
-            logging.info("\tAll classification scores:")
+            msg = f"{msg}\n-- predicted greater_than_50k = {greater_than_50k}"
 
-            logging.info(f"\t{classification_scores}")
+    except Exception as excp:
+        greater_than_50k = None
+        msg = f"{msg}\nerror occurred- {str(excp)}.\
+             Try retraining model again"
 
-            pd.DataFrame([classification_scores]).to_csv(
-                "results/classification_scores.csv")
-            logging.info(
-                "\tsaved results/classification_scores.csv ")
-            pd.DataFrame([best_classification_scores]).to_csv(
-                "results/best_classification_scores.csv")
-            logging.info(
-                "\tsaved results/best_classification_scores.csv ")
+    # logging
+    logging.info(f"{msg}")
 
-        except Exception as Excp:
-            logging.error(
-                f"\tFailed creating classif scores. {str(Excp)}")
-
-        # Models predictions
-        logging.info("-------------  Models predictions  ------------")
-
-        try:
-            lr_yprad = lr.predict(X_test)
-            knn_yprad = knn.predict(X_test)
-            rf_yprad = rf.predict(X_test)
-
-        except Exception as Excp:
-            logging.error(
-                f"\tFailed creating predictions. {str(Excp)}")
-
-        # calculating the roc_auc_scores for each models
-        logging.info(
-            "-------  Calculating the roc auc scores ------")
-        try:
-            roc_auc_scores = {
-                "lr": roc_auc_score(y_test, lr.predict(X_test)),
-                'knn': roc_auc_score(y_test, knn.predict(X_test)),
-                'dt': roc_auc_score(y_test, dt.predict(X_test)),
-                'rf': roc_auc_score(y_test, rf.predict(X_test)),
-                'adb': roc_auc_score(y_test, adb.predict(X_test)),
-                'svm': roc_auc_score(y_test, svm.predict(X_test)),
-                'gdboost': roc_auc_score(y_test, gdboost.predict(X_test)),
-                'xgboost': roc_auc_score(y_test, xgboost.predict(X_test)),
-            }
-
-            best_roc_auc_scores = {
-                'best_model_name': max(
-                    roc_auc_scores,
-                    key=roc_auc_scores.get),
-                'best_model_score': max(
-                    roc_auc_scores.values())}
-
-            logging.info("\tBest model is")
-            logging.info(
-                f"\t{best_roc_auc_scores['best_model_name']}")
-            logging.info(
-                f"\t with {best_roc_auc_scores['best_model_score']}")
-
-            logging.info(f"\tAll roc auc scores:  {roc_auc_scores}")
-
-            pd.DataFrame([roc_auc_scores]).to_csv("results/roc_auc_scores.csv")
-            logging.info(
-                "\tsaved results at results/roc_auc_scores.csv ")
-            pd.DataFrame([best_roc_auc_scores]).to_csv(
-                "results/best_roc_auc_scores.csv")
-            logging.info(
-                "\tsaved at results/best_roc_auc_scores.csv ")
-
-        except Exception as Excp:
-            logging.error(
-                f"\tFailed creating roc auc scores. {str(Excp)}")
-
-        # printing the classification report
-        logging.info(
-            "-------------  RF classif report ------------")
-        try:
-            rf_report = classification_report(
-                y_test, rf_yprad, output_dict=True)
-            logging.info(
-                "Random forest classif report \n {rf_report}")
-            pd.DataFrame(rf_report).to_csv("results/rf_report.csv")
-            logging.info(
-                "\tsaved at results/rf_report.csv ")
-
-            lr_report = classification_report(
-                y_test, lr_yprad, output_dict=True)
-            logging.info(
-                "Random forest classif report \n {lr_report}")
-            pd.DataFrame(lr_report).to_csv("results/lr_report.csv")
-            logging.info(
-                "\tsaved at results/lr_report.csv")
-            knn_report = classification_report(
-                y_test, knn_yprad, output_dict=True)
-            logging.info(
-                f"Random forest classif report \n {knn_report}")
-            pd.DataFrame(knn_report).to_csv("results/knn_report.csv")
-            logging.info(
-                "\tsaved at results/knn_report.csv")
-            logging.info(
-                "\tWe didn't create classf report for:")
-            logging.info(
-                "\tdt, adb, svm, gdboost, xgboost. For future EDA")
-
-        except Exception as Excp:
-            logging.error(
-                f"\tFailed creating classif report. {str(Excp)}")
-
-        # Ramdom forest Kfold cross validation , get 3 scores as  parameter
-        # -n_split -3
-        logging.info(
-            "-------------  Kfold Cross validation ------------")
-        logging.info(f"\tn_splits={n_splits},shuffle={shuffle}, cv={cv}")
-
-        try:
-            print("Random forest Kfold Cross validation score")
-            k_f = KFold(n_splits=4, shuffle=True)
-            cross_val_scores_mean = {
-                "lr": cross_val_score(
-                    lr, X, y, cv=5).mean(), 'knn': cross_val_score(
-                    knn, X, y, cv=5).mean(), 'dt': cross_val_score(
-                    dt, X, y, cv=5).mean(), 'rf': cross_val_score(
-                    rf, X, y, cv=5).mean(), 'adb': cross_val_score(
-                        adb, X, y, cv=5).mean(), 'svm': cross_val_score(
-                            svm, X, y, cv=5).mean(), 'gdbst': cross_val_score(
-                                gdboost, X, y, cv=5).mean(), 'xgbst': cross_val_score(
-                                    xgboost, X, y, cv=5).mean(), }
-
-            best_cross_val_scores_mean = {
-                'best_model_name': min(
-                    cross_val_scores_mean,
-                    key=cross_val_scores_mean.get),
-                'best_model_score': min(
-                    cross_val_scores_mean.values())}
-            logging.info(
-                f"\tBest  model is \
-                    {best_cross_val_scores_mean['best_model_name']}")
-
-            logging.info(
-                f"\t\n\t with \
-                    {best_cross_val_scores_mean['best_model_score']}")
-
-            logging.info(
-                f"\tAll cross val scores mean:  {cross_val_scores_mean}")
-
-            pd.DataFrame([cross_val_scores_mean]).to_csv(
-                "results/cross_val_scores_mean.csv")
-            logging.info(
-                "\tsaved results at \
-                    results/cross_val_scores_mean.csv ")
-            pd.DataFrame([best_cross_val_scores_mean]).to_csv(
-                "results/best_cross_val_scores_mean.csv")
-            logging.info(
-                "\tsaved best results at\
-                     results/best_cross_val_scores_mean.csv ")
-
-        except Exception as Excp:
-            logging.error(
-                f"\tFailed creating Kfold Cross val. {str(Excp)}")
-
-    return \
-        classification_scores, best_classification_scores, \
-        roc_auc_scores, best_roc_auc_scores, cross_val_scores_mean, \
-        best_cross_val_scores_mean, rf_report
+    return {"greater_than_50k": greater_than_50k,
+            "message": msg}
