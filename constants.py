@@ -1,4 +1,4 @@
-ENV = 'DEV'  # can be DEV or LIVE
+ENV = 'LIVE'  # can be DEV or LIVE
 
 get_home_url_dev = "http://127.0.0.1:8000"
 post_modeltrain_url_dev = f"{get_home_url_dev}/model/"
