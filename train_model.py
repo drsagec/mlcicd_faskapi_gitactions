@@ -15,6 +15,10 @@ Script to train machine learning model.
 
 '''
 # importing all constants used in this module
+try:
+    import constants
+except ModuleNotFoundError:
+    from . import constants
 import warnings
 from xgboost import XGBClassifier
 from sklearn.ensemble import GradientBoostingClassifier
@@ -31,7 +35,7 @@ from sklearn.model_selection import train_test_split
 import logging
 import os
 import numpy as np
-from mlcicd_faskapi_gitactions import constants
+
 import joblib
 import pandas as pd
 warnings.filterwarnings('ignore')

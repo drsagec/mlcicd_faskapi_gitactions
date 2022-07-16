@@ -9,7 +9,7 @@ test file to test fast api GET and POST requests
 
 
 from . import test_data
-from mlcicd_faskapi_gitactions import constants
+from .. import constants
 
 import requests
 
