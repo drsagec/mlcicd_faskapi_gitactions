@@ -1,15 +1,20 @@
 
+"""
+this is test file to test all the core training functions
+Used for MLOps continous testing and deployment
+author : Dr.Sage/Sagar Chhetri
+
+"""
+from . import test_data
+
+from .. import train_model
+from mlcicd_faskapi_gitactions import constants
+
 import os
-import sys
-sys.path.append('..')
-
-
-import numpy as np
 import joblib
-import train_model
-import constants
 import pandas as pd
-import test_data
+import numpy as np
+
 
 print("Running CORE Tests - please wait ... ")
 

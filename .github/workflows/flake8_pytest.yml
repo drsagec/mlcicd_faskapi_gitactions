@@ -33,6 +33,6 @@ jobs:
     - name: Test with pytest
       run: |
         echo stopped pytest took more than an hour 
-        cd test ;pytest test_fastapp.py; pytest test_model.py
+        cd test ;pytest -r test
 
 

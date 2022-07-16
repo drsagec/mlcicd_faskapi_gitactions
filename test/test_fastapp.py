@@ -7,10 +7,10 @@ test file to test fast api GET and POST requests
     author: Dr. Sage Chhetri
 """
 
-import sys
-sys.path.append('..')
-import test_data
-import constants
+
+from . import test_data
+from mlcicd_faskapi_gitactions import constants
+
 import requests
 
 print("Running API Tests - please wait ... ")

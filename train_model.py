@@ -31,7 +31,7 @@ from sklearn.model_selection import train_test_split
 import logging
 import os
 import numpy as np
-import constants
+from mlcicd_faskapi_gitactions import constants
 import joblib
 import pandas as pd
 warnings.filterwarnings('ignore')

@@ -1,18 +1,21 @@
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI
+from fastapi import UploadFile
 from pydantic import BaseModel, Field
 from typing import Optional
 import constants
 import secrets
 import pandas as pd
 from io import BytesIO
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
-app = FastAPI(title="Nano MLOps FastAPI/GitAictions",
+
+app = FastAPI(title="Nano MLOps FastAPI/GitActions",
               description="Train new model, get predictions of salary over \
                 50k and accuracy scores. <br><br>Use below creds:\
                     <br>username: 'nanouser'<br>password: 'nanopass'\
-                        <br> uses continous test and deploy Heroku",
+                        <br> uses continous test and deploy Heroku\
+                            <br><br> v1.0.1",
               openapi_url="/openapi.json")
 
 security = HTTPBasic()
